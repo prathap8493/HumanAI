@@ -41,8 +41,8 @@ function ImageQuiz(props) {
 
     // Update statistics for the current image
     const currentImageSrc = selectedImages[index].src;
-    const currentImageId=selectedImages[index].id;
-    const currentStats = imageStatistics[currentImageSrc] || { image_src:currentImageSrc, shown: 0, correct: 0, incorrect: 0 };
+    const currentImageId=Number(selectedImages[index].id);
+    const currentStats = imageStatistics[currentImageSrc] || { img_id:currentImageId,image_src:currentImageSrc, shown: 0, correct: 0, incorrect: 0 };
     const isCorrectGuess = selectedImages[index].answer === answer;
     currentStats.shown += 1;
     currentStats.correct += isCorrectGuess ? 1 : 0;
@@ -69,6 +69,20 @@ function ImageQuiz(props) {
 
       if (props.onCompletion) {
         props.onCompletion(newResults, correctCount);
+        
+        const data={
+          user_ip:props?.ip,
+          user_uuid:props?.userId,
+          correct_count:correctCount,
+          incorrect_count:5-correctCount
+        }
+        await fetch('http://localhost:4000/api/predicted', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(data)
+        });
       }
     }
   };
@@ -114,6 +128,8 @@ function ImageQuiz(props) {
 }
 
 export default ImageQuiz;
+
+
 
 const imageData = [
   { id:'1', src: '/AI/AI img 1.jpg', answer: 'AI',source:"https://create.playform.io/"},

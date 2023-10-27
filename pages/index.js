@@ -4,51 +4,116 @@ import Link from "next/link";
 import ImageQuiz from "../components/quiz";
 import Cookies from 'cookies-js';
 import { Card, CardHeader, CardBody, CardFooter } from '@chakra-ui/react'
+import { v4 as uuidv4 } from 'uuid';
+import axios from "axios";
 
-export default function Home() {
+export default function Home({userIp}) {
   const [openQuiz,setOpenQuiz]=useState(false);
   const [resultdata,setResultData]=useState([]);
   const [score,setScore]=useState(null)
   const [visited, setVisited] = useState(false);
+  const [ip,setIp]=useState("");
+  const [userId, setUserId] = useState("");
+  // useEffect(() => {
+  //   fetch('/api/get-ip')
+  //     .then(res => res.json())
+  //     .then(data => console.log('userIp is:', data));
+  // }, []);
 
   useEffect(() => {
-    const visitedStatus = Cookies.get('visited');
-    if (visitedStatus === undefined) {
-      Cookies.set('visited', 'false');
+    let visitedStatus = localStorage.getItem('visited');
+    let userId = localStorage.getItem('userId');
+
+    if (!userId) {
+      userId = uuidv4();
+      localStorage.setItem('userId', userId);
+    }
+
+    setUserId(userId);
+
+    if (visitedStatus === null) {
+      localStorage.setItem('visited', 'false');
     } else {
       setVisited(visitedStatus === 'true');
     }
-  }, []);  
-  console.log(visited);
+  }, []);
+  // useEffect(() => {
+  //   let visitedStatus = Cookies.get('visited');
+  //   let userId = Cookies.get('userId');
+  
+  //   if (!userId) {
+  //     userId = uuidv4();
+  //     Cookies.set('userId', userId);
+  //   }
+  
+  //   setUserId(userId);
+  
+  //   if (visitedStatus === undefined) {
+  //     Cookies.set('visited', 'false');
+  //   } else {
+  //     setVisited(visitedStatus === 'true');
+  //   }
+  // }, []);
+   
+  //Ip address fetching through third party api
+  const fetchIPAddress = async () => {
+    try {
+      const response = await fetch('http://api.ipify.org?format=json');
+      const data = await response.json();
+      setIp(data?.ip)
+      console.log('Your IP address is:', data.ip);
+    } catch (error) {
+      console.error('Error fetching IP address:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchIPAddress();
+  }, []);
+
 
   const handleQuizCompletion = (results, score) => {
     setOpenQuiz(false)
     setResultData(results)
     setScore(score)
     Cookies.set('visited', 'true');
-    fetch('http://localhost:4000/api/statistics')
-      .then(response => response.json())
-      .then(data => {
-        let statsObj = {};
-        data.forEach(stat => {
-          statsObj[stat.image_src] = stat;
+    localStorage.setItem('visited', 'true');
+    
+    axios.get("http://localhost:4000/api/predicted")
+        .then(response => {
+            console.log(response.data);
+        })
+        .catch(error => {
+            console.error("Error fetching predicted data", error);
         });
 
-        const updatedResults = results.map(result => {
-          const stats = statsObj[result.imageSrc];
-          if (stats) {
-            return {
-              ...result,
-              correct: stats.correct,
-              incorrect: stats.incorrect,
-              total_display_count:stats.shown
-            };
-          }
-          return result;
+    fetch('http://localhost:4000/api/statistics')
+        .then(response => response.json())
+        .then(data => {
+            let statsObj = {};
+            data.forEach(stat => {
+                statsObj[stat.image_src] = stat;
+            });
+
+            const updatedResults = results.map(result => {
+                const stats = statsObj[result.imageSrc];
+                if (stats) {
+                    return {
+                        ...result,
+                        correct: stats.correct,
+                        incorrect: stats.incorrect,
+                        total_display_count:stats.shown
+                    };
+                }
+                return result;
+            });
+            setResultData(updatedResults);
+        })
+        .catch(error => {
+            console.error("Error fetching statistics", error);
         });
-        setResultData(updatedResults);
-    });
   };
+
 
   return (
     <>
@@ -107,7 +172,7 @@ export default function Home() {
               {/* } */}
             </Box>
             {openQuiz && 
-              <ImageQuiz onCompletion={handleQuizCompletion}/>
+              <ImageQuiz ip={ip} userId={userId} onCompletion={handleQuizCompletion}/>
             }
             {score!==null &&
               <Box marginBottom={"10px"}>
@@ -228,6 +293,8 @@ export default function Home() {
     </>
   )
 }
+
+
 
 // <Box display={"flex"} flexDirection={"column"} alignItems={"center"}>
                   //   <Box
