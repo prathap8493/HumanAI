@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Box, Button, Grid, GridItem, Image, Text } from '@chakra-ui/react';
+import { addStatistics, addUser, getImageStatistics, getUsers } from '../../utils/fireStoreFunctions';
 
 function ImageQuiz(props) {
   const [selectedImages, setSelectedImages] = useState([]);
@@ -9,31 +10,56 @@ function ImageQuiz(props) {
   const [results, setResults] = useState([]);
   const [imageStatistics, setImageStatistics] = useState({});
 
-  useEffect(() => {
-    const randomImages = [...imageData].sort(() => 0.5 - Math.random()).slice(0, 5);
-    setSelectedImages(randomImages);
+  
+  // useEffect(() => {
+  //   const randomImages = [...imageData].sort(() => 0.5 - Math.random()).slice(0, 5);
+  //   setSelectedImages(randomImages);
 
-    fetch('http://localhost:4000/api/statistics')
-      .then(response => response.json())
-      .then(data => {
-        // console.log(data)
+  //   fetch('http://localhost:4000/api/statistics')
+  //     .then(response => response.json())
+  //     .then(data => {
+  //       // console.log(data)
+  //       let statsObj = {};
+  //       data.forEach(stat => {
+  //         statsObj[stat.image_src] = stat;
+  //       });
+  //       setImageStatistics(statsObj);
+  //     });
+  // }, []);
+
+  //FireBase Integration
+
+  useEffect(() => {
+  
+    const fetchImageStatistics = async () => {
+      try {
+        const stats = await getImageStatistics();
+        const randomImages = [...stats].sort(() => 0.5 - Math.random()).slice(0, 5);
+        setSelectedImages(randomImages);
         let statsObj = {};
-        data.forEach(stat => {
-          statsObj[stat.image_src] = stat;
+        stats.forEach(stat => {
+          statsObj[stat.src] = stat;
         });
         setImageStatistics(statsObj);
-      });
+      } catch (error) {
+        console.error('Error fetching image statistics:', error);
+      }
+    };
+  
+    fetchImageStatistics();
   }, []);
-
+  
   const handleAnswer = async (index, answer) => {
+    if (userAnswers[index] !== undefined) return;
+
     const updatedAnswers = { ...userAnswers, [index]: answer };
     setUserAnswers(updatedAnswers);
 
     const result = {
       isCorrect: selectedImages[index].answer === answer,
       imageSrc: selectedImages[index].src,
-      actualanswer: selectedImages[index]?.answer,
-      guessedanswer: answer,
+      actualAnswer: selectedImages[index]?.answer,
+      guessedAnswer: answer,
       source: selectedImages[index]?.source
     };
     const newResults = [...results, result];
@@ -41,24 +67,45 @@ function ImageQuiz(props) {
 
     // Update statistics for the current image
     const currentImageSrc = selectedImages[index].src;
-    const currentImageId=Number(selectedImages[index].id);
-    const currentStats = imageStatistics[currentImageSrc] || { img_id:currentImageId,image_src:currentImageSrc, shown: 0, correct: 0, incorrect: 0 };
+    // const currentImageId=Number(selectedImages[index].id);
+    const currentStats = imageStatistics[currentImageSrc];
+    // const isCorrectGuess = selectedImages[index].answer === answer;
+    // currentStats.shown += 1;
+    // currentStats.correct += isCorrectGuess ? 1 : 0;
+    // currentStats.incorrect += isCorrectGuess ? 0 : 1;
+
+    // const updatedStatistics = { ...imageStatistics, [currentImageSrc]: currentStats };
+    // setImageStatistics(updatedStatistics);
+    
+    // // Update the statistics in the backend
+    // await fetch('http://localhost:4000/api/statistics', {
+    //   method: 'POST',
+    //   headers: {
+    //     'Content-Type': 'application/json'
+    //   },
+    //   body: JSON.stringify(currentStats)
+    // });
+
+    //FireBase Integration
+    // const currentImageSource=selectedImages[index].source;
+    // const currentStats = imageStatistics[currentImageSrc] || { image_id: currentImageId, image_src: currentImageSrc, correct: 0, incorrect: 0,source:currentImageSource};
     const isCorrectGuess = selectedImages[index].answer === answer;
-    currentStats.shown += 1;
+
+    // currentStats.shown += 1;
+    // currentStats.id = Number(selectedImages[index].id);
     currentStats.correct += isCorrectGuess ? 1 : 0;
     currentStats.incorrect += isCorrectGuess ? 0 : 1;
 
     const updatedStatistics = { ...imageStatistics, [currentImageSrc]: currentStats };
     setImageStatistics(updatedStatistics);
-    
-    // Update the statistics in the backend
-    await fetch('http://localhost:4000/api/statistics', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(currentStats)
-    });
+
+    try {
+      await addStatistics(currentStats);
+      console.log('Statistics updated successfully');
+    } catch (error) {
+      console.error('Error updating statistics:', error);
+    }
+
 
     if (index < selectedImages.length - 1) {
       setCurrentImageIndex(index + 1);
@@ -66,29 +113,39 @@ function ImageQuiz(props) {
     else {
       let correctCount = newResults.filter(res => res.isCorrect).length;
       setScore(correctCount);
-
       if (props.onCompletion) {
         props.onCompletion(newResults, correctCount);
-        
-        const data={
-          user_ip:props?.ip,
-          user_uuid:props?.userId,
-          correct_count:correctCount,
-          incorrect_count:5-correctCount
+        const data = {
+          user_ip: props?.ip,
+          user_uuid: props?.userId,
+          correct_count: correctCount,
+          incorrect_count: 5 - correctCount,
+          imageData:newResults
+        };
+        // await fetch('http://localhost:4000/api/predicted', {
+        //   method: 'POST',
+        //   headers: {
+        //     'Content-Type': 'application/json'
+        //   },
+        //   body: JSON.stringify(data)
+        // });
+
+        //FireBase Interation 
+        try {
+          console.log(newResults)
+          await addUser(data);
+          console.log('User added successfully');
+        } catch (error) {
+          console.error('Error adding user:', error);
         }
-        await fetch('http://localhost:4000/api/predicted', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(data)
-        });
+        
       }
     }
   };
 
 
   const currentImage = selectedImages[currentImageIndex];
+  const hasAnswered = userAnswers[currentImageIndex] !== undefined;
 
   return (
     <Box>
@@ -108,6 +165,7 @@ function ImageQuiz(props) {
                         backgroundColor={"white"}
                         border={"1px lightgrey solid"}
                         padding={"30px 20px"}
+                        isDisabled={hasAnswered}
                     >
                         🤖 Generated By AI
                     </Button>
@@ -116,6 +174,7 @@ function ImageQuiz(props) {
                         backgroundColor={"white"}
                         border={"1px lightgrey solid"}
                         padding={"30px 20px"}
+                        isDisabled={hasAnswered}
                     >
                         👨 It's a real human!
                     </Button>

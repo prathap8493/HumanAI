@@ -6,6 +6,7 @@ import Cookies from 'cookies-js';
 import { Card, CardHeader, CardBody, CardFooter } from '@chakra-ui/react'
 import { v4 as uuidv4 } from 'uuid';
 import axios from "axios";
+import { getImageStatistics, getUsers } from "../utils/fireStoreFunctions";
 
 export default function Home({userIp}) {
   const [openQuiz,setOpenQuiz]=useState(false);
@@ -19,6 +20,7 @@ export default function Home({userIp}) {
   //     .then(res => res.json())
   //     .then(data => console.log('userIp is:', data));
   // }, []);
+
 
   useEffect(() => {
     let visitedStatus = localStorage.getItem('visited');
@@ -72,55 +74,75 @@ export default function Home({userIp}) {
   }, []);
 
 
-  const handleQuizCompletion = (results, score) => {
+  const handleQuizCompletion = async(results, score) => {
     setOpenQuiz(false)
     setResultData(results)
     setScore(score)
     Cookies.set('visited', 'true');
     localStorage.setItem('visited', 'true');
     
-    axios.get("http://localhost:4000/api/predicted")
-        .then(response => {
-            console.log(response.data);
-        })
-        .catch(error => {
-            console.error("Error fetching predicted data", error);
-        });
+    // axios.get("http://localhost:4000/api/predicted")
+    // .then(response => {
+    //     console.log(response.data);
+    // })
+    // .catch(error => {
+    //     console.error("Error fetching predicted data", error);
+    // });
+    try {
+      const stats = await getImageStatistics();
+      let statsObj = {};
+      stats.forEach(stat => {
+        statsObj[stat.src] = stat;
+      });
+      const updatedResults = results.map(result => {
+        const stats = statsObj[result.imageSrc];
+        if (stats) {
+          return {
+            ...result,
+            correct: stats.correct,
+            incorrect: stats.incorrect,
+            total_display_count: stats.correct+stats.incorrect
+          };
+        }
+        return result;
+      });
+      setResultData(updatedResults);
+    } catch (error) {
+      console.error("Error fetching statistics", error);
+    }
+    // fetch('http://localhost:4000/api/statistics')
+    //     .then(response => response.json())
+    //     .then(data => {
+    //         let statsObj = {};
+    //         data.forEach(stat => {
+    //             statsObj[stat.image_src] = stat;
+    //         });
 
-    fetch('http://localhost:4000/api/statistics')
-        .then(response => response.json())
-        .then(data => {
-            let statsObj = {};
-            data.forEach(stat => {
-                statsObj[stat.image_src] = stat;
-            });
-
-            const updatedResults = results.map(result => {
-                const stats = statsObj[result.imageSrc];
-                if (stats) {
-                    return {
-                        ...result,
-                        correct: stats.correct,
-                        incorrect: stats.incorrect,
-                        total_display_count:stats.shown
-                    };
-                }
-                return result;
-            });
-            setResultData(updatedResults);
-        })
-        .catch(error => {
-            console.error("Error fetching statistics", error);
-        });
+    //         const updatedResults = results.map(result => {
+    //             const stats = statsObj[result.imageSrc];
+    //             if (stats) {
+    //                 return {
+    //                     ...result,
+    //                     correct: stats.correct,
+    //                     incorrect: stats.incorrect,
+    //                     total_display_count:stats.shown
+    //                 };
+    //             }
+    //             return result;
+    //         });
+    //         setResultData(updatedResults);
+    //     })
+    //     .catch(error => {
+    //         console.error("Error fetching statistics", error);
+    //     });
   };
-
-
+  // console.log(resultdata)
   return (
     <>
         {visited === false ? 
           <p>You have visited this page before.</p>
         :
-          <Box backgroundColor="black" overflow="hidden" height={(openQuiz || score!==null) ? "100%" : "100vh"} display={"flex"} flexDirection={"column"} alignItems={"center"} justifyContent={"center"}>
+          <Box backgroundColor="black" overflow="hidden" height={(openQuiz || score!==null) ? "100%" : "100%"} display={"flex"} flexDirection={"column"} alignItems={"center"} justifyContent={"center"}>
             <Box width={["100%","100%","38em"]} padding={"20px"}>
               <Heading 
                 as="h1" 
@@ -151,7 +173,7 @@ export default function Home({userIp}) {
               >
                 Think you can tell the difference?
               </Text>
-              <Box 
+              {/* <Box 
                 display={"flex"} 
                 justifyContent={"center"} 
                 marginTop={"30px"}
@@ -162,7 +184,7 @@ export default function Home({userIp}) {
                 >
                   Start the Game
                 </Button>
-              </Box>
+              </Box> */}
               {/* {score!==null && */}
                 <Box border={"2px #35f160 solid"} margin={["5% 5% 2% 5%","5% 8% 2% 8%","5% 16% 2% 16%"]} padding={["2% 2%"]}>
                   <Text textAlign="center" color={"#35f160"}>The experiment has ended.‍‍</Text>
@@ -171,16 +193,94 @@ export default function Home({userIp}) {
                 </Box>
               {/* } */}
             </Box>
-            {openQuiz && 
+            {score===null && 
               <ImageQuiz ip={ip} userId={userId} onCompletion={handleQuizCompletion}/>
-            }
+            } 
             {score!==null &&
               <Box marginBottom={"10px"}>
                 <Text fontSize="2xl" color={"#fff"}>Your score is: {score} out of 5</Text>
               </Box>
             }
-
             {resultdata?.length > 0 && 
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <div style={{ width: '90%', overflowX: 'auto' }}>
+                  <div style={{ 
+                    display: 'flex',
+                    flexDirection: 'row',
+                    height: 'fit-content',
+                    padding: '2% 0%',
+                  }}>
+                    {resultdata.map((img, idx) => (
+                      <div key={idx} style={{ flex: '0 0 auto', marginRight: '20px', position: 'relative' }}>
+                        <Card maxW='sm' boxShadow={"0 0.5rem 2rem rgba(0,0,0,0.15)"} marginBottom={"10px"}>
+                                  {img.isCorrect ? 
+                                      <Box style={{ 
+                                          position: 'absolute', 
+                                          top: '-12px', 
+                                          right: '-10px', 
+                                          fontSize: '24px', 
+                                          color: 'green'}} 
+                                          padding={"2px"}
+                                          backgroundColor={"#33cd32"}
+                                          borderRadius={"6px"}
+                                      >
+                                          <svg value="correct" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="2rem" height="2rem">
+                                              <path d="M0 0h24v24H0V0z" fill="#33cd32"></path>
+                                              <path d="M9 16.17L5.53 12.7c-.39-.39-1.02-.39-1.41 0-.39.39-.39 1.02 0 1.41l4.18 4.18c.39.39 1.02.39 1.41 0L20.29 7.71c.39-.39.39-1.02 0-1.41-.39-.39-1.02-.39-1.41 0L9 16.17z"></path>
+                                          </svg>
+                                      </Box>:
+                                      <Box style={{ 
+                                          position: 'absolute', 
+                                          top: '-12px', 
+                                          right: '-10px', 
+                                          fontSize: '24px', 
+                                          color: 'green'}} 
+                                          padding={"2px"}
+                                          backgroundColor={"red"}
+                                          borderRadius={"6px"}
+                                      >
+                                          <svg value="wrong" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="2rem" height="2rem"><path d="M0 0h24v24H0V0z" fill="none"></path><path d="M18.3 5.71c-.39-.39-1.02-.39-1.41 0L12 10.59 7.11 5.7c-.39-.39-1.02-.39-1.41 0-.39.39-.39 1.02 0 1.41L10.59 12 5.7 16.89c-.39.39-.39 1.02 0 1.41.39.39 1.02.39 1.41 0L12 13.41l4.89 4.89c.39.39 1.02 .39 1.41 0 .39-.39 .39-1.02 0-1.41L13.41 12l4.89-4.89c.38-.38 .38-1.02 0-1.4z"></path></svg>
+                                      </Box>
+                                  }
+                                  <CardBody>
+                                      <Image
+                                          src={img?.imageSrc}
+                                          alt='Green double couch with wooden legs'
+                                          borderRadius='lg'
+                                      />
+                                      <Stack mt='6' spacing='3'>
+                                          <Text size='md'>{img?.actualAnswer==="AI" ? "🤖 Generated By AI" : "👨 A real Human"}</Text>
+                                          <Text>You guessed {img?.guessedAnswer}</Text>
+                                      </Stack>
+                                      <Stack mt='3' spacing='3'>
+                                        <Text>
+                                        {img?.total_display_count > 0 ? 
+                                          (Math.round((img?.correct / img?.total_display_count) * 1000) / 10) % 1 === 0 ? 
+                                              Math.round((img?.correct / img?.total_display_count) * 100) : (Math.round((img?.correct / img?.total_display_count) * 1000) / 10).toFixed(1)
+                                          : '0'
+                                        }%
+
+                                          &nbsp;of people guessed correctly from a total of {img?.total_display_count} answers
+                                        </Text>
+
+                                      </Stack>
+                                      <Stack  mt='3'>
+                                        <Text color="#E7197C" cursor="pointer">
+                                            <a href={img?.source} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
+                                                {img?.source?.replace('https://', '')}
+                                            </a>
+                                        </Text>
+                                      </Stack>
+                                  </CardBody>
+                        </Card>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            }
+
+            {/* {resultdata?.length > 0 && 
               <div style={{ display: 'flex', justifyContent: 'center', overflow: 'hidden' }}>
                   <div style={{ 
                       display: 'flex',
@@ -256,7 +356,7 @@ export default function Home({userIp}) {
                       ))}
                   </div>
               </div>
-            }
+            } */}
 
 
 
