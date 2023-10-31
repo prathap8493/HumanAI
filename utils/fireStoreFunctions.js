@@ -1,6 +1,6 @@
 // src/firestoreFunctions.js
 import { db } from '../utils/firebase'; 
-import { collection, query, where,updateDoc,doc, onSnapshot,addDoc,getDocs } from "firebase/firestore";
+import { collection, query,increment,where,select,writeBatch,updateDoc,doc,getDoc,onSnapshot,addDoc,getDocs } from "firebase/firestore";
 
 export const getUsers = () => {
   const usersRef = collection(db, 'user_responses');
@@ -33,25 +33,112 @@ export const addUser = async (user) => {
 };
 
 export const getImageStatistics = async () => {
-  const statsRef = collection(db, 'images');
-  const querySnapshot = await getDocs(statsRef);
-  const stats = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  return stats;
-};
+  try {
+    const statsRef = collection(db, 'images');
+    const querySnapshot = await getDocs(statsRef);
+    const allStats = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {id: doc.id,imageid:data.id,src: data.src }; 
+    });
 
-export const addStatistics = async (stats) => {
-  const statsRef = collection(db, 'images');
-  // Query for the statistics with the matching image_src
-  const q = query(statsRef, where("id", "==", stats.id));
-  const querySnapshot = await getDocs(q);
-  
-  if (querySnapshot.empty) {
-    await addDoc(statsRef, stats);
-    console.log('New stats added');
-  } 
-  else {
-    const existingStatsDoc = querySnapshot.docs[0];
-    await updateDoc(doc(statsRef, existingStatsDoc.id), stats);
-    console.log('Stats updated');
+    // Function to get random elements from an array
+    const getRandomElements = (arr, count) => {
+      const shuffled = [...arr].sort(() => 0.5 - Math.random());
+      return shuffled.slice(0, count);
+    }
+
+    // Get 5 random stats
+    const randomStats = getRandomElements(allStats, 5);
+    return randomStats;
+
+  } catch (error) {
+    console.error("Error fetching image statistics:", error);
+    throw error; 
   }
 };
+export const addStatistics = async (clickData) => {
+  const statsRef = collection(db, 'images');
+  const updatedDocs = [];
+  const batch = writeBatch(db);
+
+  // Step 1: Fetch all documents
+  const allDocsSnapshot = await getDocs(statsRef);
+  const allDocs = allDocsSnapshot.docs.map(doc => ({ firestoreId: doc.id, ...doc.data() }));
+
+  // Step 2: Update in memory
+  for (const { imageid, userAnswer } of clickData) {
+    const doc = allDocs.find(d => d.id === imageid);
+    if (doc) {
+      const isCorrect = doc.answer === userAnswer;
+      doc.correct = (doc.correct ?? 0) + (isCorrect ? 1 : 0);
+      doc.incorrect = (doc.incorrect ?? 0) + (isCorrect ? 0 : 1);
+      updatedDocs.push({ firestoreId: doc.firestoreId, ...doc, isCorrect, guessedAnswer: userAnswer });
+    } else {
+      console.log('No record found for image ID:', imageid);
+    }
+  }
+
+  // Step 3: Batch write back to Firestore
+  for (const docData of updatedDocs) {
+    const docRef = doc(db, 'images', docData.firestoreId);
+    batch.update(docRef, {
+      correct: docData.correct,
+      incorrect: docData.incorrect
+    });
+  }
+
+  // Commit the batch
+  try {
+    await batch.commit();
+  } catch (error) {
+    console.error("Error updating documents: ", error);
+    throw error;
+  }
+
+  // Return the updated documents
+  return updatedDocs;
+};
+
+// export const addStatistics = async (clickData) => {
+//   const statsRef = collection(db, 'images');
+//   const updatedDocs = [];
+
+//   for (const { id, userAnswer } of clickData) {
+//     const q = query(statsRef, where("id", "==", id));
+//     const querySnapshot = await getDocs(q);
+
+//     if (!querySnapshot.empty) {
+//       const docRef = querySnapshot.docs[0].ref; // Get the document reference
+//       const docData = querySnapshot.docs[0].data();
+//       const isCorrect = docData.answer === userAnswer;
+
+//       if (isCorrect) {
+//         console.log('Answer is correct for image ID:', id);
+//         await updateDoc(docRef, {
+//           correct: increment(1)
+//         });
+//       } else {
+//         console.log('Answer is incorrect for image ID:', id);
+//         await updateDoc(docRef, {
+//           incorrect: increment(1)
+//         });
+//       }
+      
+//       // Get the updated document data
+//       const updatedDocData = (await getDoc(docRef)).data();
+//       if (updatedDocData) {
+//         updatedDocs.push({ id, ...updatedDocData, isCorrect, guessedAnswer: userAnswer });
+//       }
+
+//     } else {
+//       console.log('No record found for image ID:', id);
+//     }
+//   }
+
+//   return updatedDocs;
+// };
+
+
+
+
+

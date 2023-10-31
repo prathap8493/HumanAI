@@ -21,7 +21,7 @@ export default function Home({userIp}) {
   //     .then(data => console.log('userIp is:', data));
   // }, []);
 
-
+  //Making the page accessible for one time only through localstorage
   useEffect(() => {
     let visitedStatus = localStorage.getItem('visited');
     let userId = localStorage.getItem('userId');
@@ -39,23 +39,6 @@ export default function Home({userIp}) {
       setVisited(visitedStatus === 'true');
     }
   }, []);
-  // useEffect(() => {
-  //   let visitedStatus = Cookies.get('visited');
-  //   let userId = Cookies.get('userId');
-  
-  //   if (!userId) {
-  //     userId = uuidv4();
-  //     Cookies.set('userId', userId);
-  //   }
-  
-  //   setUserId(userId);
-  
-  //   if (visitedStatus === undefined) {
-  //     Cookies.set('visited', 'false');
-  //   } else {
-  //     setVisited(visitedStatus === 'true');
-  //   }
-  // }, []);
    
   //Ip address fetching through third party api
   const fetchIPAddress = async () => {
@@ -63,7 +46,6 @@ export default function Home({userIp}) {
       const response = await fetch('http://api.ipify.org?format=json');
       const data = await response.json();
       setIp(data?.ip)
-      console.log('Your IP address is:', data.ip);
     } catch (error) {
       console.error('Error fetching IP address:', error);
     }
@@ -73,70 +55,15 @@ export default function Home({userIp}) {
     fetchIPAddress();
   }, []);
 
-
+  
   const handleQuizCompletion = async(results, score) => {
     setOpenQuiz(false)
     setResultData(results)
     setScore(score)
     Cookies.set('visited', 'true');
     localStorage.setItem('visited', 'true');
-    
-    // axios.get("http://localhost:4000/api/predicted")
-    // .then(response => {
-    //     console.log(response.data);
-    // })
-    // .catch(error => {
-    //     console.error("Error fetching predicted data", error);
-    // });
-    try {
-      const stats = await getImageStatistics();
-      let statsObj = {};
-      stats.forEach(stat => {
-        statsObj[stat.src] = stat;
-      });
-      const updatedResults = results.map(result => {
-        const stats = statsObj[result.imageSrc];
-        if (stats) {
-          return {
-            ...result,
-            correct: stats.correct,
-            incorrect: stats.incorrect,
-            total_display_count: stats.correct+stats.incorrect
-          };
-        }
-        return result;
-      });
-      setResultData(updatedResults);
-    } catch (error) {
-      console.error("Error fetching statistics", error);
-    }
-    // fetch('http://localhost:4000/api/statistics')
-    //     .then(response => response.json())
-    //     .then(data => {
-    //         let statsObj = {};
-    //         data.forEach(stat => {
-    //             statsObj[stat.image_src] = stat;
-    //         });
-
-    //         const updatedResults = results.map(result => {
-    //             const stats = statsObj[result.imageSrc];
-    //             if (stats) {
-    //                 return {
-    //                     ...result,
-    //                     correct: stats.correct,
-    //                     incorrect: stats.incorrect,
-    //                     total_display_count:stats.shown
-    //                 };
-    //             }
-    //             return result;
-    //         });
-    //         setResultData(updatedResults);
-    //     })
-    //     .catch(error => {
-    //         console.error("Error fetching statistics", error);
-    //     });
   };
-  // console.log(resultdata)
+
   return (
     <>
         {visited === false ? 
@@ -202,14 +129,9 @@ export default function Home({userIp}) {
               </Box>
             }
             {resultdata?.length > 0 && 
-              <div style={{ display: 'flex', justifyContent: 'center' }}>
-                <div style={{ width: '90%', overflowX: 'auto' }}>
-                  <div style={{ 
-                    display: 'flex',
-                    flexDirection: 'row',
-                    height: 'fit-content',
-                    padding: '2% 0%',
-                  }}>
+              <Box display={"flex"} justifyContent={"center"}>
+                <Box width={"90%"} overflowX={"auto"}>
+                  <Box display="flex" flexDirection={["column","column","row"]} height={"fit-content"} padding={"2% 0%"} >
                     {resultdata.map((img, idx) => (
                       <div key={idx} style={{ flex: '0 0 auto', marginRight: '20px', position: 'relative' }}>
                         <Card maxW='sm' boxShadow={"0 0.5rem 2rem rgba(0,0,0,0.15)"} marginBottom={"10px"}>
@@ -244,23 +166,23 @@ export default function Home({userIp}) {
                                   }
                                   <CardBody>
                                       <Image
-                                          src={img?.imageSrc}
+                                          src={img?.src}
                                           alt='Green double couch with wooden legs'
                                           borderRadius='lg'
                                       />
                                       <Stack mt='6' spacing='3'>
-                                          <Text size='md'>{img?.actualAnswer==="AI" ? "🤖 Generated By AI" : "👨 A real Human"}</Text>
+                                          <Text size='md'>{img?.answer==="AI" ? "🤖 Generated By AI" : "👨 A real Human"}</Text>
                                           <Text>You guessed {img?.guessedAnswer}</Text>
                                       </Stack>
                                       <Stack mt='3' spacing='3'>
                                         <Text>
-                                        {img?.total_display_count > 0 ? 
-                                          (Math.round((img?.correct / img?.total_display_count) * 1000) / 10) % 1 === 0 ? 
-                                              Math.round((img?.correct / img?.total_display_count) * 100) : (Math.round((img?.correct / img?.total_display_count) * 1000) / 10).toFixed(1)
+                                        {img?.correct > 0 ? 
+                                          (Math.round((img?.correct / (img?.correct+img?.incorrect)) * 1000) / 10) % 1 === 0 ? 
+                                              Math.round((img?.correct / (img?.correct+img?.incorrect)) * 100) : (Math.round((img?.correct / (img?.correct+img?.incorrect)) * 1000) / 10).toFixed(1)
                                           : '0'
                                         }%
 
-                                          &nbsp;of people guessed correctly from a total of {img?.total_display_count} answers
+                                          &nbsp;of people guessed correctly from a total of {img?.correct+img?.incorrect} answers
                                         </Text>
 
                                       </Stack>
@@ -275,118 +197,10 @@ export default function Home({userIp}) {
                         </Card>
                       </div>
                     ))}
-                  </div>
-                </div>
-              </div>
+                  </Box>
+                </Box>
+              </Box>
             }
-
-            {/* {resultdata?.length > 0 && 
-              <div style={{ display: 'flex', justifyContent: 'center', overflow: 'hidden' }}>
-                  <div style={{ 
-                      display: 'flex',
-                      flexDirection: 'row',
-                      height: 'fit-content',
-                      padding: '2% 5%',
-                      overflowX: 'auto'
-                  }}>
-                      {resultdata.map((img, idx) => (
-                          <div style={{ flex: '0 0 auto', marginRight: '20px', position: 'relative' }}>
-                              <Card maxW='sm' boxShadow={"0 0.5rem 2rem rgba(0,0,0,0.15)"} marginBottom={"10px"}>
-                                  {img.isCorrect ? 
-                                      <Box style={{ 
-                                          position: 'absolute', 
-                                          top: '-12px', 
-                                          right: '-10px', 
-                                          fontSize: '24px', 
-                                          color: 'green'}} 
-                                          padding={"2px"}
-                                          backgroundColor={"#33cd32"}
-                                          borderRadius={"6px"}
-                                      >
-                                          <svg value="correct" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="2rem" height="2rem">
-                                              <path d="M0 0h24v24H0V0z" fill="#33cd32"></path>
-                                              <path d="M9 16.17L5.53 12.7c-.39-.39-1.02-.39-1.41 0-.39.39-.39 1.02 0 1.41l4.18 4.18c.39.39 1.02.39 1.41 0L20.29 7.71c.39-.39.39-1.02 0-1.41-.39-.39-1.02-.39-1.41 0L9 16.17z"></path>
-                                          </svg>
-                                      </Box>:
-                                      <Box style={{ 
-                                          position: 'absolute', 
-                                          top: '-12px', 
-                                          right: '-10px', 
-                                          fontSize: '24px', 
-                                          color: 'green'}} 
-                                          padding={"2px"}
-                                          backgroundColor={"red"}
-                                          borderRadius={"6px"}
-                                      >
-                                          <svg value="wrong" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="2rem" height="2rem"><path d="M0 0h24v24H0V0z" fill="none"></path><path d="M18.3 5.71c-.39-.39-1.02-.39-1.41 0L12 10.59 7.11 5.7c-.39-.39-1.02-.39-1.41 0-.39.39-.39 1.02 0 1.41L10.59 12 5.7 16.89c-.39.39-.39 1.02 0 1.41.39.39 1.02.39 1.41 0L12 13.41l4.89 4.89c.39.39 1.02 .39 1.41 0 .39-.39 .39-1.02 0-1.41L13.41 12l4.89-4.89c.38-.38 .38-1.02 0-1.4z"></path></svg>
-                                      </Box>
-                                  }
-                                  <CardBody>
-                                      <Image
-                                          src={img?.imageSrc}
-                                          alt='Green double couch with wooden legs'
-                                          borderRadius='lg'
-                                      />
-                                      <Stack mt='6' spacing='3'>
-                                          <Text size='md'>{img?.actualanswer==="AI" ? "🤖 Generated By AI" : "👨 A real Human"}</Text>
-                                          <Text>You guessed {img?.guessedanswer}</Text>
-                                      </Stack>
-                                      <Stack mt='3' spacing='3'>
-                                        <Text>
-                                        {img?.total_display_count > 0 ? 
-                                          (Math.round((img?.correct / img?.total_display_count) * 1000) / 10) % 1 === 0 ? 
-                                              Math.round((img?.correct / img?.total_display_count) * 100) : (Math.round((img?.correct / img?.total_display_count) * 1000) / 10).toFixed(1)
-                                          : '0'
-                                        }%
-
-                                          &nbsp;of people guessed correctly from a total of {img?.total_display_count} answers
-                                        </Text>
-
-                                      </Stack>
-                                      <Stack  mt='3'>
-                                        <Text color="#E7197C" cursor="pointer">
-                                            <a href={img?.source} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
-                                                {img?.source?.replace('https://', '')}
-                                            </a>
-                                        </Text>
-                                      </Stack>
-                                  </CardBody>
-                              </Card>
-                          </div>
-                      ))}
-                  </div>
-              </div>
-            } */}
-
-
-
-            {/* {resultdata?.length > 0 && 
-              <Grid templateColumns='repeat(5, 1fr)' gap={4} padding={"2%"}>
-                {resultdata.map((img, idx) => (
-                  <Card maxW='sm' border={img.isCorrect ? '4px solid green' : '4px solid red'} boxShadow={"0 0.5rem 2rem rgba(0,0,0,0.15)"}>
-                  <CardBody>
-                    <Image
-                      src={img?.imageSrc}
-                      alt='Green double couch with wooden legs'
-                      borderRadius='lg'
-                    />
-                    <Stack mt='6' spacing='3'>
-                      <Text size='md'>{img?.actualanswer==="AI" ? "🤖 Generated By AI" : "👨 A real Human"}</Text>
-                      <Text>You guessed {img?.guessedanswer}</Text>
-                    </Stack>
-                  </CardBody>
-                  <CardFooter overflow={"hidden"}>
-                    <Text color="#E7197C" cursor="pointer">
-                      <a href={img?.source} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
-                        {img?.source?.replace('https://', '')}
-                      </a>
-                    </Text>
-                  </CardFooter>
-                </Card>
-                  
-                ))}
-              </Grid>
-            } */}
           </Box>
         } 
         
@@ -394,81 +208,3 @@ export default function Home({userIp}) {
   )
 }
 
-
-
-// <Box display={"flex"} flexDirection={"column"} alignItems={"center"}>
-                  //   <Box
-                  //     key={idx}
-                  //     boxShadow="2px 2px 10px #888888"
-                  //     border={img.isCorrect ? '2px solid green' : '2px solid red'}
-                  //     display={"flex"}
-                  //     flexDir={"column"}
-                  //     justifyContent={"center"}
-                  //     alignItems={"center"}
-                  //   >
-                  //     <Image src={img?.imageSrc} alt="quiz-image" width={100} height={100}/>
-                  //   </Box>
-                  //   <Text color={"#fff"}>{img?.actualanswer}</Text>
-                  // </Box>
-
-
-
-
-
-                  
-
-
-
-                  // {resultdata?.length > 0 && 
-                  //   <div style={{ display: 'flex', justifyContent: 'center', padding: '2% 5%' }}>
-                  //       <div style={{ overflowX: 'scroll', display: 'flex', whiteSpace: 'nowrap', maxWidth: '100%' }}>
-                  //           {resultdata.map((img, idx) => (
-                  //               <div style={{ flex: '0 0 auto', marginRight: '16px',marginBottom:"10px"}}>
-                  //                   <Card maxW='sm' boxShadow={"0 0.5rem 2rem rgba(0,0,0,0.15)"} style={{ position: 'relative' }}>
-                  //                       {img.isCorrect ? 
-                  //                           <Box style={{ 
-                  //                               position: 'absolute', 
-                  //                               top:"-10px",
-                  //                               right:"0px",
-                  //                               // top: '-1rem', 
-                  //                               // right: '-1rem', 
-                  //                               fontSize: '24px', 
-                  //                               color: 'green'
-                  //                           }} padding={"2px"}>
-                  //                               <svg value="correct" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="2rem" height="2rem">
-                  //                                   <path d="M0 0h24v24H0V0z" fill="#33cd32"></path>
-                  //                                   <path d="M9 16.17L5.53 12.7c-.39-.39-1.02-.39-1.41 0-.39.39-.39 1.02 0 1.41l4.18 4.18c.39.39 1.02.39 1.41 0L20.29 7.71c.39-.39.39-1.02 0-1.41-.39-.39-1.02-.39-1.41 0L9 16.17z"></path>
-                  //                               </svg>
-                  //                           </Box>:
-                  //                           <span style={{ 
-                  //                               position: 'absolute', 
-                  //                               top: '-1rem', 
-                  //                               right: '-1rem', 
-                  //                               fontSize: '24px', 
-                  //                               color: 'red' 
-                  //                           }}>*</span>
-                  //                       }
-                  //                       <CardBody>
-                  //                           <Image
-                  //                               src={img?.imageSrc}
-                  //                               alt='Green double couch with wooden legs'
-                  //                               borderRadius='lg'
-                  //                           />
-                  //                           <Stack mt='6' spacing='3'>
-                  //                               <Text size='md'>{img?.actualanswer==="AI" ? "🤖 Generated By AI" : "👨 A real Human"}</Text>
-                  //                               <Text>You guessed {img?.guessedanswer}</Text>
-                  //                           </Stack>
-                  //                       </CardBody>
-                  //                       <CardFooter overflow={"hidden"}>
-                  //                           <Text color="#E7197C" cursor="pointer">
-                  //                               <a href={img?.source} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
-                  //                                   {img?.source?.replace('https://', '')}
-                  //                               </a>
-                  //                           </Text>
-                  //                       </CardFooter>
-                  //                   </Card>
-                  //               </div>
-                  //           ))}
-                  //       </div>
-                  //   </div>
-                  // }
